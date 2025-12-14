@@ -7,7 +7,7 @@ API_URL = "http://localhost:6006/chat"
 
 def main():
     print("="*50)
-    print("Qwen3-4B 终端对话客户端")
+    print("本地部署 Qwen 终端对话客户端")
     print("输入 'exit' 或 'quit' 退出对话")
     print("输入 'clear' 清空对话历史")
     print("="*50)

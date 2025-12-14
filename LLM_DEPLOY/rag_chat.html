@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG 增强问答系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 1000px;
+            height: 90vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .chat-header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .chat-header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .mode-switch {
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 5px;
+            display: inline-flex;
+            margin-top: 10px;
+        }
+
+        .mode-btn {
+            padding: 8px 20px;
+            border: none;
+            background: transparent;
+            color: white;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .mode-btn.active {
+            background: white;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .message.assistant {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 18px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            line-height: 1.6;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.assistant .message-content {
+            background: white;
+            color: #333;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            max-width: 100%;
+        }
+
+        .sources-container {
+            margin-top: 10px;
+            max-width: 100%;
+        }
+
+        .source-card {
+            background: #e3f2fd;
+            border-left: 3px solid #2196f3;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+
+        .source-header {
+            font-weight: bold;
+            color: #1976d2;
+            margin-bottom: 5px;
+        }
+
+        .source-content {
+            color: #555;
+            line-height: 1.5;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .message.system {
+            display: flex;
+            justify-content: center;
+        }
+
+        .message.system .message-content {
+            background: #fff3cd;
+            color: #856404;
+            font-size: 14px;
+            border: 1px solid #ffeeba;
+        }
+
+        .chat-input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+
+        #userInput {
+            flex: 1;
+            padding: 12px 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        #userInput:focus {
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        #sendBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        #sendBtn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #sendBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #clearBtn {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        #clearBtn:hover {
+            background: #e0e0e0;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 12px 18px;
+            background: white;
+            border-radius: 18px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: fit-content;
+        }
+
+        .typing-indicator.active {
+            display: block;
+        }
+
+        .typing-indicator span {
+            height: 10px;
+            width: 10px;
+            background: #667eea;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+            animation: bounce 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f5f5f5;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>🤖 RAG 增强问答系统</h1>
+            <p>基于 Qwen2.5-7B + FAISS 向量检索</p>
+            <div class="mode-switch">
+                <button class="mode-btn active" onclick="switchMode('rag')">RAG 模式</button>
+                <button class="mode-btn" onclick="switchMode('normal')">普通模式</button>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <div class="message system">
+                <div class="message-content">
+                    欢迎使用 RAG 增强问答系统！<br>
+                    <strong>RAG 模式</strong>：从知识库检索相关文档后回答<br>
+                    <strong>普通模式</strong>：直接使用模型回答（无检索）
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-input-area">
+            <input type="text" id="userInput" placeholder="输入你的问题..." />
+            <button id="sendBtn" onclick="sendMessage()">发送</button>
+            <button id="clearBtn" onclick="clearHistory()">清空</button>
+        </div>
+    </div>
+
+    <script>
+        let currentMode = 'rag';  // 'rag' 或 'normal'
+        let history = [];
+        const RAG_API_URL = 'http://localhost:6006/rag_chat';
+        const NORMAL_API_URL = 'http://localhost:6006/chat';
+
+        // 回车发送
+        document.getElementById('userInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        function switchMode(mode) {
+            currentMode = mode;
+            
+            // 更新按钮状态
+            const buttons = document.querySelectorAll('.mode-btn');
+            buttons.forEach(btn => {
+                btn.classList.remove('active');
+                if ((mode === 'rag' && btn.textContent.includes('RAG')) ||
+                    (mode === 'normal' && btn.textContent.includes('普通'))) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // 清空历史并显示提示
+            clearHistory();
+            const modeText = mode === 'rag' ? 'RAG 模式（带检索）' : '普通模式（无检索）';
+            addSystemMessage(`已切换到 ${modeText}`);
+        }
+
+        function addSystemMessage(content) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message system';
+            messageDiv.innerHTML = `<div class="message-content">${content}</div>`;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function addMessage(role, content, sources = null) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            
+            let html = `<div class="message-content">${content}</div>`;
+            
+            // 如果是 RAG 模式且有来源，显示参考资料
+            if (sources && sources.length > 0) {
+                html += '<div class="sources-container">';
+                html += '<div style="font-size: 13px; color: #666; margin-bottom: 8px;">📚 参考资料：</div>';
+                sources.forEach(source => {
+                    html += `
+                        <div class="source-card">
+                            <div class="source-header">
+                                📄 ${source.index}. ${source.source}
+                            </div>
+                            <div class="source-content">
+                                ${source.content}
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            messageDiv.innerHTML = html;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function showTyping() {
+            const messagesDiv = document.getElementById('chatMessages');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message assistant';
+            typingDiv.id = 'typingIndicator';
+            typingDiv.innerHTML = `
+                <div class="typing-indicator active">
+                    <span></span><span></span><span></span>
+                </div>
+            `;
+            messagesDiv.appendChild(typingDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function hideTyping() {
+            const typingDiv = document.getElementById('typingIndicator');
+            if (typingDiv) {
+                typingDiv.remove();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const query = input.value.trim();
+            
+            if (!query) return;
+            
+            // 显示用户消息
+            addMessage('user', query);
+            input.value = '';
+            
+            // 禁用发送按钮
+            sendBtn.disabled = true;
+            showTyping();
+            
+            const startTime = Date.now();
+            const apiUrl = currentMode === 'rag' ? RAG_API_URL : NORMAL_API_URL;
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        history: history,
+                        k: 3  // RAG 模式检索 3 个文档
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('API 请求失败');
+                }
+                
+                const data = await response.json();
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                
+                hideTyping();
+                
+                // 显示助手回复
+                addMessage('assistant', data.response, data.sources);
+                
+                // 显示耗时和模式
+                const modeText = currentMode === 'rag' ? 'RAG 模式' : '普通模式';
+                const sourcesInfo = data.sources ? ` | 检索了 ${data.sources.length} 个文档` : '';
+                addSystemMessage(`⏱️ 耗时: ${elapsed}秒 | 模式: ${modeText}${sourcesInfo}`);
+                
+                // 更新历史记录
+                history = data.history || [];
+                
+            } catch (error) {
+                hideTyping();
+                addSystemMessage(`❌ 错误: ${error.message}。请确保 RAG 服务器正在运行 (python rag_server.py)`);
+            } finally {
+                sendBtn.disabled = false;
+                input.focus();
+            }
+        }
+
+        function clearHistory() {
+            if (history.length > 0 && !confirm('确定要清空对话历史吗？')) {
+                return;
+            }
+            
+            history = [];
+            const messagesDiv = document.getElementById('chatMessages');
+            messagesDiv.innerHTML = `
+                <div class="message system">
+                    <div class="message-content">
+                        对话历史已清空
+                    </div>
+                </div>
+            `;
+        }
+
+        // 页面加载时聚焦输入框
+        window.onload = function() {
+            document.getElementById('userInput').focus();
+        };
+    </script>
+</body>
+</html>
