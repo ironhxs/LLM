@@ -1,0 +1,38 @@
+name: llm_deploy
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    # PyTorch 2.1.2 + CUDA 12.1 (与 AutoGPTQ 0.6.0 完美匹配)
+    - --index-url https://download.pytorch.org/whl/cu121
+    - torch==2.1.2
+    - torchvision==0.16.2
+    - torchaudio==2.1.2
+    
+    # LLM 核心库 (关键: AutoGPTQ 0.6.0 适配 PyTorch 2.1.2)
+    - transformers==4.45.2
+    - auto-gptq==0.6.0
+    - peft<0.12
+    - optimum
+    - accelerate
+    - modelscope
+    - numpy<2.0
+    
+    # RAG & LangChain
+    - sentence-transformers
+    - langchain
+    - langchain-community
+    - langchain-huggingface
+    - faiss-cpu
+    
+    # API & 工具
+    - flask
+    - flask-cors
+    - requests
+    - tiktoken
+    - protobuf
