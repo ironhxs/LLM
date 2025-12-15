@@ -23,8 +23,8 @@ def load_models():
     """加载 LLM 和向量数据库"""
     global tokenizer, model, vectorstore, embedding_model
     
-    # 获取当前脚本所在目录的绝对路径
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    # 获取项目根目录（src的上级目录）
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     MODELS_DIR = os.path.join(BASE_DIR, "models")
     VECTOR_STORE_PATH = os.path.join(BASE_DIR, "vector_store")
     
@@ -129,12 +129,13 @@ def rag_chat():
         context = "\n\n".join(context_parts)
         
         # 3. 构建提示词
-        prompt = f"""你是一个专业的技术助手。请根据以下参考资料回答问题。
+        prompt = f"""你是合肥工业大学人工智能课程的智能助手。请根据以下参考资料回答学生的问题。
 
 要求：
-1. 如果参考资料中有相关信息，基于资料给出准确回答
-2. 如果参考资料中没有相关信息，明确说明"参考资料中没有相关信息"
-3. 回答要简洁清晰，条理分明
+1. 如果参考资料中有相关信息，基于资料给出准确、详细的回答
+2. 如果参考资料中没有相关信息，明确说明"参考资料中暂无相关内容"
+3. 回答要专业、清晰、条理分明
+4. 对于课程、实验相关问题，尽可能给出具体指导
 
 {context}
 
@@ -144,7 +145,7 @@ def rag_chat():
 【回答】"""
 
         # 4. 构建对话历史
-        messages = [{"role": "system", "content": "You are a helpful assistant."}]
+        messages = [{"role": "system", "content": "你是合肥工业大学人工智能课程的智能助手，专门为学生解答课程相关问题。"}]
         
         # 添加历史对话（最多保留最近 5 轮）
         for h in history[-5:]:
@@ -209,7 +210,7 @@ def simple_chat():
         start_time = time.time()
         
         # 构建对话
-        messages = [{"role": "system", "content": "You are a helpful assistant."}]
+        messages = [{"role": "system", "content": "你是一个专业的AI助手，擅长回答技术和学术相关问题。"}]
         
         for h in history[-5:]:
             messages.append({"role": "user", "content": h[0]})
@@ -256,9 +257,9 @@ def simple_chat():
 
 if __name__ == '__main__':
     load_models()
-    print("\n🌐 RAG API 服务器启动中...")
+    print("\n🌐 AI课程助手 RAG 服务器启动中...")
     print("📍 访问地址: http://localhost:6006")
-    print("📘 RAG 端点: POST /rag_chat")
+    print("📘 RAG端点: POST /rag_chat (基于课程知识库)")
     print("💬 普通对话: POST /chat")
     print("❤️  健康检查: GET /health")
     app.run(host='0.0.0.0', port=6006, debug=False)
