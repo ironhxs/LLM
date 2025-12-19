@@ -4,309 +4,170 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RAG 增强问答系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
+            font-family: 'Inter', sans-serif;
+            background: #f0f2f5;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+            background-size: cover;
+            background-attachment: fixed;
         }
 
-        .chat-container {
-            width: 100%;
-            max-width: 1000px;
-            height: 90vh;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+        .glass-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
         }
 
-        .chat-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .user-bubble {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            border-radius: 20px 20px 0 20px;
+        }
+        
+        .ai-bubble {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px 20px 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
-        .chat-header h1 {
-            font-size: 24px;
-            margin-bottom: 5px;
+        .markdown-body p { margin-bottom: 0.75em; line-height: 1.6; }
+        .markdown-body p:last-child { margin-bottom: 0; }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { font-weight: 600; margin-top: 1em; margin-bottom: 0.5em; color: #1e293b; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 0.75em; }
+        .markdown-body ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 0.75em; }
+        .markdown-body pre { 
+            background: #1e1e1e !important; 
+            padding: 1rem; 
+            border-radius: 0.5rem; 
+            overflow-x: auto; 
+            margin: 0.75rem 0;
+            color: #e2e8f0;
         }
-
-        .chat-header p {
-            font-size: 14px;
-            opacity: 0.9;
+        .markdown-body code { 
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace; 
+            font-size: 0.9em;
+            background: rgba(0,0,0,0.05);
+            padding: 0.2em 0.4em;
+            border-radius: 0.3em;
+            color: #ef4444;
         }
+        .user-bubble .markdown-body code { color: #fbbf24; background: rgba(255,255,255,0.1); }
+        .markdown-body pre code { background: transparent; color: inherit; padding: 0; }
+        .markdown-body blockquote { border-left: 4px solid #e2e8f0; padding-left: 1em; color: #64748b; }
 
-        .mode-switch {
-            background: rgba(255,255,255,0.2);
-            border-radius: 20px;
-            padding: 5px;
-            display: inline-flex;
-            margin-top: 10px;
-        }
-
-        .mode-btn {
-            padding: 8px 20px;
-            border: none;
-            background: transparent;
-            color: white;
-            border-radius: 15px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 14px;
-        }
-
-        .mode-btn.active {
-            background: white;
-            color: #667eea;
-            font-weight: bold;
-        }
-
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-
-        .message {
-            margin-bottom: 20px;
-            animation: fadeIn 0.3s;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .message.user {
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .message.assistant {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        .message-content {
-            max-width: 70%;
-            padding: 12px 18px;
-            border-radius: 18px;
-            word-wrap: break-word;
-            line-height: 1.6;
-        }
-
-        .message.user .message-content {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .message.assistant .message-content {
-            background: white;
-            color: #333;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            max-width: 100%;
-        }
-
-        .sources-container {
-            margin-top: 10px;
-            max-width: 100%;
-        }
-
-        .source-card {
-            background: #e3f2fd;
-            border-left: 3px solid #2196f3;
-            padding: 10px 15px;
-            margin-bottom: 8px;
-            border-radius: 5px;
-            font-size: 13px;
-        }
-
-        .source-header {
-            font-weight: bold;
-            color: #1976d2;
-            margin-bottom: 5px;
-        }
-
-        .source-content {
-            color: #555;
-            line-height: 1.5;
-            max-height: 100px;
-            overflow-y: auto;
-        }
-
-        .message.system {
-            display: flex;
-            justify-content: center;
-        }
-
-        .message.system .message-content {
-            background: #fff3cd;
-            color: #856404;
-            font-size: 14px;
-            border: 1px solid #ffeeba;
-        }
-
-        .chat-input-area {
-            padding: 20px;
-            background: white;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            gap: 10px;
-        }
-
-        #userInput {
-            flex: 1;
-            padding: 12px 18px;
-            border: 2px solid #e0e0e0;
-            border-radius: 25px;
-            font-size: 16px;
-            outline: none;
-            transition: border-color 0.3s;
-        }
-
-        #userInput:focus {
-            border-color: #667eea;
-        }
-
-        button {
-            padding: 12px 30px;
-            border: none;
-            border-radius: 25px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-weight: bold;
-        }
-
-        #sendBtn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        #sendBtn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        #sendBtn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        #clearBtn {
-            background: #f5f5f5;
-            color: #666;
-        }
-
-        #clearBtn:hover {
-            background: #e0e0e0;
-        }
-
-        .typing-indicator {
-            display: none;
-            padding: 12px 18px;
-            background: white;
-            border-radius: 18px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            width: fit-content;
-        }
-
-        .typing-indicator.active {
-            display: block;
-        }
-
-        .typing-indicator span {
-            height: 10px;
-            width: 10px;
-            background: #667eea;
+        .typing-dot {
+            width: 8px; height: 8px;
+            background: #94a3b8;
             border-radius: 50%;
-            display: inline-block;
-            margin: 0 2px;
-            animation: bounce 1.4s infinite;
+            animation: bounce 1.4s infinite ease-in-out both;
         }
-
-        .typing-indicator span:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-
-        .typing-indicator span:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-
-        @keyframes bounce {
-            0%, 60%, 100% { transform: translateY(0); }
-            30% { transform: translateY(-10px); }
-        }
-
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #f5f5f5;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #ccc;
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #999;
-        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
     </style>
 </head>
-<body>
-    <div class="chat-container">
-        <div class="chat-header">
-            <h1>🤖 RAG 增强问答系统</h1>
-            <p>基于 Qwen2.5-7B + FAISS 向量检索</p>
-            <div class="mode-switch">
-                <button class="mode-btn active" onclick="switchMode('rag')">RAG 模式</button>
-                <button class="mode-btn" onclick="switchMode('normal')">普通模式</button>
-            </div>
-        </div>
+<body class="h-screen flex items-center justify-center p-4">
+
+    <div class="glass-container w-full max-w-6xl h-[90vh] rounded-2xl flex flex-col overflow-hidden relative">
         
-        <div class="chat-messages" id="chatMessages">
-            <div class="message system">
-                <div class="message-content">
-                    欢迎使用 RAG 增强问答系统！<br>
-                    <strong>RAG 模式</strong>：从知识库检索相关文档后回答<br>
-                    <strong>普通模式</strong>：直接使用模型回答（无检索）
+        <!-- Header -->
+        <div class="bg-white/80 backdrop-blur-sm border-b border-gray-100 p-4 flex items-center justify-between z-10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shadow-lg">
+                    <i class="fa-solid fa-database text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-gray-800 text-lg">RAG Knowledge Assistant</h1>
+                    <div class="flex items-center gap-2 text-xs text-blue-500">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                        <span>Connected to Vector Store</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mode Switcher -->
+            <div class="flex items-center bg-gray-100 rounded-full p-1 border border-gray-200">
+                <button onclick="switchMode('rag')" id="ragBtn" class="px-4 py-1.5 rounded-full text-sm font-medium transition-all bg-white text-blue-600 shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-magnifying-glass"></i> RAG 增强
+                </button>
+                <button onclick="switchMode('normal')" id="normalBtn" class="px-4 py-1.5 rounded-full text-sm font-medium text-gray-500 transition-all hover:text-gray-700 flex items-center gap-2">
+                    <i class="fa-regular fa-comment"></i> 普通对话
+                </button>
+            </div>
+
+            <button onclick="clearHistory()" class="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50" title="清空历史">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+        </div>
+
+        <!-- Chat Area -->
+        <div id="chatMessages" class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-gray-50/50">
+            <!-- Welcome Message -->
+            <div class="flex gap-4 max-w-4xl mx-auto">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex-shrink-0 flex items-center justify-center text-white text-xs">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div class="ai-bubble p-4 text-gray-700 text-sm leading-relaxed shadow-sm">
+                    <p>欢迎使用 RAG 增强问答系统！</p>
+                    <ul class="list-disc pl-5 mt-2 space-y-1 text-gray-600">
+                        <li><strong>RAG 模式</strong>：我会先检索知识库（课程大纲、班级名单等），再回答你的问题。</li>
+                        <li><strong>普通模式</strong>：直接使用大模型能力进行通用对话。</li>
+                    </ul>
                 </div>
             </div>
         </div>
-        
-        <div class="chat-input-area">
-            <input type="text" id="userInput" placeholder="输入你的问题..." />
-            <button id="sendBtn" onclick="sendMessage()">发送</button>
-            <button id="clearBtn" onclick="clearHistory()">清空</button>
+
+        <!-- Input Area -->
+        <div class="p-4 bg-white border-t border-gray-100">
+            <div class="max-w-4xl mx-auto relative">
+                <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                    <i class="fa-regular fa-keyboard"></i>
+                </div>
+                <input type="text" id="userInput" 
+                    class="w-full pl-10 pr-14 py-4 bg-gray-100 border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl transition-all outline-none text-gray-700 placeholder-gray-400 shadow-inner"
+                    placeholder="输入你的问题... (Enter 发送)"
+                    autocomplete="off">
+                <button id="sendBtn" onclick="sendMessage()" 
+                    class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-paper-plane text-sm"></i>
+                </button>
+            </div>
         </div>
+
     </div>
 
     <script>
-        let currentMode = 'rag';  // 'rag' 或 'normal'
+        let currentMode = 'rag';
         let history = [];
         const RAG_API_URL = 'http://localhost:6006/rag_chat';
         const NORMAL_API_URL = 'http://localhost:6006/chat';
 
-        // 回车发送
+        marked.setOptions({
+            highlight: function(code, lang) {
+                const language = highlight.getLanguage(lang) ? lang : 'plaintext';
+                return highlight.highlight(code, { language }).value;
+            },
+            langPrefix: 'hljs language-',
+            breaks: true
+        });
+
         document.getElementById('userInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -316,82 +177,113 @@
 
         function switchMode(mode) {
             currentMode = mode;
+            const ragBtn = document.getElementById('ragBtn');
+            const normalBtn = document.getElementById('normalBtn');
             
-            // 更新按钮状态
-            const buttons = document.querySelectorAll('.mode-btn');
-            buttons.forEach(btn => {
-                btn.classList.remove('active');
-                if ((mode === 'rag' && btn.textContent.includes('RAG')) ||
-                    (mode === 'normal' && btn.textContent.includes('普通'))) {
-                    btn.classList.add('active');
-                }
-            });
+            if (mode === 'rag') {
+                ragBtn.className = "px-4 py-1.5 rounded-full text-sm font-medium transition-all bg-white text-blue-600 shadow-sm flex items-center gap-2";
+                normalBtn.className = "px-4 py-1.5 rounded-full text-sm font-medium text-gray-500 transition-all hover:text-gray-700 flex items-center gap-2";
+            } else {
+                ragBtn.className = "px-4 py-1.5 rounded-full text-sm font-medium text-gray-500 transition-all hover:text-gray-700 flex items-center gap-2";
+                normalBtn.className = "px-4 py-1.5 rounded-full text-sm font-medium transition-all bg-white text-indigo-600 shadow-sm flex items-center gap-2";
+            }
             
-            // 清空历史并显示提示
             clearHistory();
-            const modeText = mode === 'rag' ? 'RAG 模式（带检索）' : '普通模式（无检索）';
-            addSystemMessage(`已切换到 ${modeText}`);
+            addMessage('system', `已切换到 ${mode === 'rag' ? 'RAG 增强模式' : '普通对话模式'}`);
         }
 
-        function addSystemMessage(content) {
-            const messagesDiv = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message system';
-            messageDiv.innerHTML = `<div class="message-content">${content}</div>`;
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        function scrollToBottom() {
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.scrollTo({
+                top: chatMessages.scrollHeight,
+                behavior: 'smooth'
+            });
         }
 
         function addMessage(role, content, sources = null) {
             const messagesDiv = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${role}`;
+            const wrapperDiv = document.createElement('div');
             
-            let html = `<div class="message-content">${content}</div>`;
-            
-            // 如果是 RAG 模式且有来源，显示参考资料
-            if (sources && sources.length > 0) {
-                html += '<div class="sources-container">';
-                html += '<div style="font-size: 13px; color: #666; margin-bottom: 8px;">📚 参考资料：</div>';
-                sources.forEach(source => {
-                    html += `
-                        <div class="source-card">
-                            <div class="source-header">
-                                📄 ${source.index}. ${source.source}
+            if (role === 'system') {
+                wrapperDiv.className = 'flex justify-center my-4';
+                wrapperDiv.innerHTML = `
+                    <div class="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full border border-gray-300">
+                        ${content}
+                    </div>
+                `;
+            } else if (role === 'user') {
+                wrapperDiv.className = 'flex justify-end gap-3';
+                wrapperDiv.innerHTML = `
+                    <div class="user-bubble p-4 text-white text-sm shadow-md max-w-[80%]">
+                        <div class="markdown-body">${marked.parse(content)}</div>
+                    </div>
+                    <div class="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0 flex items-center justify-center text-gray-500 overflow-hidden border-2 border-white shadow-sm">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                `;
+            } else {
+                // Assistant Message
+                let sourcesHtml = '';
+                if (sources && sources.length > 0) {
+                    sourcesHtml = `
+                        <div class="mt-4 pt-3 border-t border-gray-100">
+                            <div class="flex items-center gap-2 mb-2">
+                                <i class="fa-solid fa-book-open text-blue-400 text-xs"></i>
+                                <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">参考来源</span>
                             </div>
-                            <div class="source-content">
-                                ${source.content}
+                            <div class="grid gap-2">
+                                ${sources.map((s, i) => `
+                                    <div class="bg-blue-50/50 border border-blue-100 rounded-lg p-3 text-xs text-gray-600 hover:bg-blue-50 transition-colors group cursor-default">
+                                        <div class="font-medium text-blue-700 mb-1 flex items-center gap-2">
+                                            <span class="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center text-[10px] group-hover:bg-blue-200 transition-colors">${i+1}</span>
+                                            ${s.source}
+                                        </div>
+                                        <div class="line-clamp-2 opacity-80 group-hover:opacity-100 transition-opacity">${s.content}</div>
+                                    </div>
+                                `).join('')}
                             </div>
                         </div>
                     `;
-                });
-                html += '</div>';
+                }
+
+                wrapperDiv.className = 'flex gap-3';
+                wrapperDiv.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div class="ai-bubble p-4 text-gray-800 text-sm shadow-sm max-w-[85%]">
+                        <div class="markdown-body">${marked.parse(content)}</div>
+                        ${sourcesHtml}
+                    </div>
+                `;
             }
             
-            messageDiv.innerHTML = html;
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            messagesDiv.appendChild(wrapperDiv);
+            scrollToBottom();
         }
 
         function showTyping() {
             const messagesDiv = document.getElementById('chatMessages');
             const typingDiv = document.createElement('div');
-            typingDiv.className = 'message assistant';
             typingDiv.id = 'typingIndicator';
+            typingDiv.className = 'flex gap-3';
             typingDiv.innerHTML = `
-                <div class="typing-indicator active">
-                    <span></span><span></span><span></span>
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div class="ai-bubble p-4 flex items-center gap-1 h-[52px]">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
                 </div>
             `;
             messagesDiv.appendChild(typingDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            scrollToBottom();
         }
 
         function hideTyping() {
             const typingDiv = document.getElementById('typingIndicator');
-            if (typingDiv) {
-                typingDiv.remove();
-            }
+            if (typingDiv) typingDiv.remove();
         }
 
         async function sendMessage() {
@@ -401,11 +293,8 @@
             
             if (!query) return;
             
-            // 显示用户消息
             addMessage('user', query);
             input.value = '';
-            
-            // 禁用发送按钮
             sendBtn.disabled = true;
             showTyping();
             
@@ -415,39 +304,31 @@
             try {
                 const response = await fetch(apiUrl, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         query: query,
                         history: history,
-                        k: 3  // RAG 模式检索 3 个文档
+                        k: 3
                     })
                 });
                 
-                if (!response.ok) {
-                    throw new Error('API 请求失败');
-                }
+                if (!response.ok) throw new Error('API Error');
                 
                 const data = await response.json();
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
                 
                 hideTyping();
-                
-                // 显示助手回复
                 addMessage('assistant', data.response, data.sources);
                 
-                // 显示耗时和模式
                 const modeText = currentMode === 'rag' ? 'RAG 模式' : '普通模式';
-                const sourcesInfo = data.sources ? ` | 检索了 ${data.sources.length} 个文档` : '';
-                addSystemMessage(`⏱️ 耗时: ${elapsed}秒 | 模式: ${modeText}${sourcesInfo}`);
+                const sourcesInfo = data.sources ? ` | 检索 ${data.sources.length} 篇` : '';
+                addMessage('system', `⏱️ ${elapsed}s | ${modeText}${sourcesInfo}`);
                 
-                // 更新历史记录
                 history = data.history || [];
                 
             } catch (error) {
                 hideTyping();
-                addSystemMessage(`❌ 错误: ${error.message}。请确保 RAG 服务器正在运行 (python rag_server.py)`);
+                addMessage('system', `❌ 连接失败: 请检查 rag_server.py 是否运行`);
             } finally {
                 sendBtn.disabled = false;
                 input.focus();
@@ -455,25 +336,12 @@
         }
 
         function clearHistory() {
-            if (history.length > 0 && !confirm('确定要清空对话历史吗？')) {
-                return;
-            }
-            
             history = [];
-            const messagesDiv = document.getElementById('chatMessages');
-            messagesDiv.innerHTML = `
-                <div class="message system">
-                    <div class="message-content">
-                        对话历史已清空
-                    </div>
-                </div>
-            `;
+            document.getElementById('chatMessages').innerHTML = '';
+            addMessage('system', '对话历史已清空');
         }
 
-        // 页面加载时聚焦输入框
-        window.onload = function() {
-            document.getElementById('userInput').focus();
-        };
+        window.onload = () => document.getElementById('userInput').focus();
     </script>
 </body>
 </html>

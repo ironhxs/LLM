@@ -14,8 +14,14 @@ model = None
 def load_model():
     global tokenizer, model
     print("正在初始化模型...")
-    model_id = 'Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4'
-    model_dir = snapshot_download(model_id, cache_dir='./models')
+    
+    # 使用本地绝对路径加载模型
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    model_dir = os.path.join(current_dir, '..', 'models', 'Qwen', 'Qwen2___5-7B-Instruct-GPTQ-Int4')
+    model_dir = os.path.abspath(model_dir)
+    
+    print(f"Loading model from: {model_dir}")
     
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
@@ -23,7 +29,7 @@ def load_model():
         device_map="auto",
         trust_remote_code=True
     )
-    print(f"模型 {model_id} 加载完成！")
+    print(f"模型加载完成！")
 
 @app.route('/chat', methods=['POST'])
 def chat():

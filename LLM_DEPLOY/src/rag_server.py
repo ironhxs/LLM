@@ -35,15 +35,22 @@ def load_models():
     
     # 1. 加载 Embedding 模型
     print("\n[1/3] 加载 Embedding 模型...")
-    # 尝试从本地 models 目录加载，如果不存在则下载
-    embedding_model_id = 'AI-ModelScope/text2vec-base-chinese'
-    try:
-        print(f"正在检查/下载 Embedding 模型到: {MODELS_DIR}")
-        embedding_model_path = snapshot_download(embedding_model_id, cache_dir=MODELS_DIR)
-        print(f"使用本地 Embedding 模型: {embedding_model_path}")
-    except Exception as e:
-        print(f"ModelScope 下载失败，尝试在线加载: {e}")
-        embedding_model_path = "shibing624/text2vec-base-chinese"
+    
+    # 定义预期路径
+    embedding_model_path = os.path.join(MODELS_DIR, 'AI-ModelScope', 'text2vec-base-chinese')
+    
+    # 检查模型文件是否存在 (简单检查 config.json)
+    if not os.path.exists(os.path.join(embedding_model_path, 'config.json')):
+        print(f"本地模型未找到或不完整，正在尝试重新下载...")
+        try:
+            # 尝试从 ModelScope 下载
+            embedding_model_path = snapshot_download('AI-ModelScope/text2vec-base-chinese', cache_dir=MODELS_DIR)
+        except Exception as e:
+            print(f"ModelScope 下载失败: {e}")
+            print("尝试使用 HuggingFace 远程模型...")
+            embedding_model_path = "shibing624/text2vec-base-chinese"
+            
+    print(f"使用 Embedding 模型: {embedding_model_path}")
 
     embedding_model = HuggingFaceEmbeddings(
         model_name=embedding_model_path,
@@ -70,9 +77,9 @@ def load_models():
     
     # 3. 加载 Qwen 模型
     print("\n[3/3] 加载 Qwen2.5-7B 模型...")
-    model_id = 'Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4'
-    # 使用绝对路径的 models 目录
-    model_dir = snapshot_download(model_id, cache_dir=MODELS_DIR)
+    # 直接使用本地路径
+    model_dir = os.path.join(MODELS_DIR, 'Qwen', 'Qwen2___5-7B-Instruct-GPTQ-Int4')
+    print(f"Loading model from: {model_dir}")
     
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
