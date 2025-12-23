@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# RAG 向量数据库
+vector_store/
+
+# 调试脚本
+debug_*.py
+
+# 模型文件（体积过大，不上传）
+models/
+*.safetensors
+*.bin
+*.pth
+*.ckpt
+*.pt
+
+# ModelScope 缓存
+.cache/
+.modelscope/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# 环境变量
+.env
+.env.local
+
+# 日志文件
+*.log
+
+# 操作系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.bak
+*.swp
+*~
+
+# LaTeX 编译产物（精确匹配，不忽略源文件）
+docs/*.aux
+docs/*.log
+docs/*.out
+docs/*.toc
+docs/*.gz
+docs/images/
+# 保留 LaTeX 源文件和图片
+!docs/*.cls
+!docs/*.tex
