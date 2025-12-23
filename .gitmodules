@@ -1,0 +1,3 @@
+[submodule "Final-Project/DoRA"]
+	path = Final-Project/DoRA
+	url = https://github.com/NVlabs/DoRA.git
