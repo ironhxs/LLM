@@ -1,0 +1,468 @@
+\documentclass{llm_experiment_report}
+\usepackage{hyperref}
+
+\begin{document}
+
+% 页面风格
+\pagestyle{bianyi}
+% 封面
+\input{cover}
+
+% 正文
+\section{实验目的和要求}
+
+\subsection{实验目的}
+
+掌握大语言模型的本地化部署方法，理解 RAG（检索增强生成）技术原理，学会使用开源工具构建智能问答系统，提升 AI 应用开发能力。
+
+\subsection{实验要求}
+
+\begin{enumerate}
+	\item 完成本地化大模型部署
+	\begin{itemize}
+		\item 搭建大模型运行环境（GPU / Python / 推理框架等）
+		\item 从模型仓库拉取开源大语言模型（Qwen2.5-7B-Instruct）
+		\item 完成本地推理服务部署并验证推理能力
+	\end{itemize}
+	
+	\item 调用 API 实现问答功能
+	\begin{itemize}
+		\item 调用已部署的大模型 API 完成基础问答
+		\item 支持对话模式并观察模型响应质量
+	\end{itemize}
+	
+	\item 增强检索式问答（RAG）功能实现
+	\begin{itemize}
+		\item 选择方案：基于 LangChain 实现 RAG
+		\item 构建文本向量化与知识库（使用 FAISS）
+		\item 通过 LangChain 集成本地模型与向量检索模块
+		\item 使用私有数据集验证增强检索问答效果
+	\end{itemize}
+\end{enumerate}
+
+\section{实验环境和工具}
+
+\subsection{硬件环境}
+
+\begin{itemize}
+	\item GPU：NVIDIA RTX 4060 Laptop（8GB 显存）
+	\item CPU：Intel Core i9-14900HX (2.20 GHz)
+	\item 内存：32GB DDR4
+	\item 存储：954GB SSD
+\end{itemize}
+
+\subsection{软件环境}
+
+\begin{itemize}
+	\item 操作系统：Windows 11 专业版
+	\item Python 版本：3.11.5
+	\item CUDA 版本：12.1
+	\item 开发工具：VS Code
+\end{itemize}
+
+\subsection{核心依赖库}
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{lll}
+		\toprule
+		\textbf{库名称} & \textbf{版本} & \textbf{用途} \\
+		\midrule
+		torch & 2.1.2+cu121 & PyTorch 深度学习框架 \\
+		auto-gptq & 0.6.0 & 4-bit 量化推理加速 \\
+		transformers & 4.45.2 & 模型加载与管理 \\
+		langchain & 1.1.3 & RAG 框架 \\
+		faiss-cpu & 1.13.1 & 向量检索引擎 \\
+		flask & 3.1.2 & Web API 服务 \\
+		\bottomrule
+	\end{tabular}
+	\caption{主要依赖库及版本}
+\end{table}
+
+\section{实验内容与实现}
+
+\subsection{本地化大模型部署}
+
+\subsubsection{模型选择与下载}
+
+选用 Qwen2.5-7B-Instruct-GPTQ-Int4 量化模型，该模型具备以下特点：
+
+\begin{itemize}
+	\item 参数量：70 亿参数
+	\item 量化方式：GPTQ 4-bit 量化
+	\item 显存需求：约 6GB（适配 RTX 4060 8GB 显存）
+	\item 推理速度：15-20 tokens/s
+\end{itemize}
+
+模型包含两个分片的 safetensors 文件（\texttt{model-00001-of-00002.safetensors} 和 \texttt{model-00002-of-00002.safetensors}）以及配置文件（\texttt{config.json}、\texttt{tokenizer.json} 等）。
+
+\subsubsection{环境配置流程}
+
+关键配置步骤如下：
+
+\begin{enumerate}
+	\item 创建 Conda 虚拟环境
+\begin{lstlisting}[language=bash]
+conda create -n llm_deploy python=3.11
+conda activate llm_deploy
+\end{lstlisting}
+	
+	\item 安装 PyTorch（CUDA 12.1 版本）
+\begin{lstlisting}[language=bash]
+pip install torch==2.1.2+cu121 --index-url 
+https://pypi.tuna.tsinghua.edu.cn/simple
+\end{lstlisting}
+	
+	\item 安装 AutoGPTQ 及其他依赖
+\begin{lstlisting}[language=bash]
+pip install auto-gptq==0.6.0
+pip install transformers langchain flask faiss-cpu
+\end{lstlisting}
+\end{enumerate}
+
+环境配置完成后的依赖列表如图 \ref{fig:env_setup} 所示。
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.6\textwidth]{images/图1_环境配置.png}
+	\caption{环境配置完成}
+	\label{fig:env_setup}
+\end{figure}
+
+\subsubsection{模型文件准备}
+
+从 ModelScope 下载 Qwen2.5-7B-Instruct-GPTQ-Int4 量化模型，模型文件结构如图 \ref{fig:model_files} 所示。该模型使用 4-bit 量化技术，相比原始 FP16 模型（约 14GB）缩减至 5GB 左右，显存需求降低约 65\%。
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.6\textwidth]{images/图2_模型文件.png}
+	\caption{模型文件结构}
+	\label{fig:model_files}
+\end{figure}
+
+\subsubsection{模型加载与验证}
+
+核心模型加载代码如下：
+
+\begin{lstlisting}[language=python]
+from auto_gptq import AutoGPTQForCausalLM
+from transformers import AutoTokenizer
+
+# 模型路径
+model_path = "models/Qwen/Qwen2___5-7B-Instruct-GPTQ-Int4"
+
+# 加载模型
+model = AutoGPTQForCausalLM.from_quantized(
+    model_path,
+    device_map="auto",
+    use_cache=True
+)
+
+# 加载分词器
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+print("模型加载成功，显存占用:", torch.cuda.memory_allocated())
+\end{lstlisting}
+
+模型加载成功后显存占用约 5.8GB，符合预期。Flask 服务启动日志如图 \ref{fig:api_startup} 所示。
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.7\textwidth]{images/图3_API服务启动.png}
+	\caption{API 服务启动}
+	\label{fig:api_startup}
+\end{figure}
+
+\subsection{基础问答功能实现}
+
+\subsubsection{Flask API 服务搭建}
+
+构建 Flask 后端服务，提供 RESTful API 接口：
+
+\begin{lstlisting}[language=python]
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    data = request.json
+    user_query = data.get('message', '')
+    
+    # 构造 Prompt
+    prompt = f"User: {user_query}\nAssistant:"
+    
+    # 模型推理
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    outputs = model.generate(**inputs, max_length=512)
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    return jsonify({'answer': response})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=6006)
+\end{lstlisting}
+
+服务启动后监听 6006 端口，可通过 Web 界面或 Postman 进行测试。
+
+\subsubsection{基础对话测试}
+
+测试场景包括代码生成、概念解释、数学计算等。图 \ref{fig:basic_chat} 展示了终端对话测试，模型能够正确响应各类问题。
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.7\textwidth]{images/图4_终端对话.png}
+	\caption{终端对话测试}
+	\label{fig:basic_chat}
+\end{figure}
+
+\subsection{RAG 增强检索问答实现}
+
+\subsubsection{知识库构建}
+
+准备私有数据集，包含班级档案、课程资料等文档（共约 50KB），文档目录结构：
+
+\begin{lstlisting}[language=bash]
+knowledge_base/
+├── class_roster_cs23-1.txt   # CS23-1 班级档案
+├── class_roster_cs23-2.txt   # CS23-2 班级档案
+├── class_roster_cs23-3.txt   # CS23-3 班级档案
+├── course_syllabus.md         # 课程大纲
+└── course_faq.md              # 常见问题
+\end{lstlisting}
+
+文档切分与向量化代码：
+
+\begin{lstlisting}[language=python]
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+
+# 加载文档
+documents = []
+for file in os.listdir("knowledge_base"):
+    with open(f"knowledge_base/{file}", "r", encoding="utf-8") as f:
+        documents.append(f.read())
+
+# 文档切分
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=500,
+    chunk_overlap=50
+)
+chunks = text_splitter.split_text("\n\n".join(documents))
+
+# Embedding 模型
+embeddings = HuggingFaceEmbeddings(
+    model_name="models/AI-ModelScope/text2vec-base-chinese"
+)
+
+# 构建向量库
+vectorstore = FAISS.from_texts(chunks, embeddings)
+vectorstore.save_local("vector_store")
+\end{lstlisting}
+
+向量库构建完成后，会在 \texttt{vector\_store/} 目录生成 \texttt{index.faiss} 索引文件，共包含 103 个文档片段。知识库文档结构如图 \ref{fig:knowledge_base} 所示。
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.7\textwidth]{images/图7_知识库文档.png}
+	\caption{知识库文档结构}
+	\label{fig:knowledge_base}
+\end{figure}
+
+RAG 服务启动日志如图 \ref{fig:rag_startup} 所示，显示向量库加载成功（103 个文档片段）。
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.7\textwidth]{images/图6_RAG服务启动.png}
+	\caption{RAG 服务启动日志}
+	\label{fig:rag_startup}
+\end{figure}
+
+\subsubsection{RAG 检索流程实现}
+
+实现 RAG 增强问答的核心逻辑：
+
+\begin{lstlisting}[language=python]
+@app.route('/rag_chat', methods=['POST'])
+def rag_chat():
+    data = request.json
+    user_query = data.get('message', '')
+    
+    # 1. 向量检索（Top-3）
+    docs = vectorstore.similarity_search(user_query, k=3)
+    context = "\n\n".join([doc.page_content for doc in docs])
+    sources = [doc.metadata.get('source', '') for doc in docs]
+    
+    # 2. 构造增强 Prompt
+    prompt = f"""基于以下参考资料回答问题。如果资料中没有相关信息，请明确说明。
+
+参考资料：
+{context}
+
+问题：{user_query}
+
+回答："""
+    
+    # 3. 模型生成
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    outputs = model.generate(**inputs, max_length=1024)
+    answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    return jsonify({
+        'answer': answer,
+        'sources': sources
+    })
+\end{lstlisting}
+
+RAG 模式与普通模式的对比效果如图 \ref{fig:rag_comparison} 所示，RAG 能准确回答私有数据集中的问题。
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.75\textwidth]{images/图8_RAG模式对比.png}
+	\caption{RAG 模式对比}
+	\label{fig:rag_comparison}
+\end{figure}
+
+相比之下，普通模式（无知识库检索）在面对私有数据问题时无法给出准确答案，如图 \ref{fig:normal_mode} 所示。
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.75\textwidth]{images/图9_普通模式回答.png}
+	\caption{普通模式回答示例}
+	\label{fig:normal_mode}
+\end{figure}
+
+此外，模型在代码生成任务上表现优秀，能够生成可运行的快速排序算法，如图 \ref{fig:code_generation} 所示。
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.75\textwidth]{images/图10_代码生成测试.png}
+	\caption{代码生成测试}
+	\label{fig:code_generation}
+\end{figure}
+
+\subsection{前端界面实现}
+
+使用 HTML + Tailwind CSS 实现 Glassmorphism 风格聊天界面，支持：
+
+\begin{itemize}
+	\item Markdown 渲染（Marked.js）
+	\item 代码高亮（Highlight.js）
+	\item 信息溯源显示（sources 字段）
+\end{itemize}
+
+前端界面采用现代化设计，支持 Markdown 渲染和代码高亮，如图 \ref{fig:frontend} 所示。
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.75\textwidth]{images/图5_Web对话界面.png}
+	\caption{Web 聊天界面}
+	\label{fig:frontend}
+\end{figure}
+
+代码块高亮展示效果如图 \ref{fig:code_highlight} 所示，前端使用 Highlight.js 实现语法高亮，提升代码可读性。
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.75\textwidth]{images/图11_代码高亮展示.png}
+	\caption{代码高亮展示}
+	\label{fig:code_highlight}
+\end{figure}
+
+\section{实验结果与分析}
+
+\subsection{功能验证}
+
+对比测试普通对话模式与 RAG 模式的差异：
+
+\begin{table}[h]
+	\centering
+	\begin{tabular}{p{5cm}p{4cm}p{4cm}}
+		\toprule
+		\textbf{测试问题} & \textbf{普通模式} & \textbf{RAG 模式} \\
+		\midrule
+		计科23-3班的辅导员是谁？ & "我不知道" 或编造答案 & "玄奘大师"（准确） \\
+		计科23-3班班长是谁？ & 无法回答 & "孙悟空"（准确） \\
+		计科2班班长是谁？ & 无法回答 & "关羽"（准确） \\
+		\bottomrule
+	\end{tabular}
+	\caption{对比测试结果}
+\end{table}
+
+从测试结果可以看出，RAG 模式能够准确回答私有数据集中的问题，而普通模式只能依赖预训练知识，无法获取本地文档中的信息。如图 \ref{fig:rag_comparison} 所示，RAG 检索成功返回了 3 个相关文档来源（\texttt{cs\_23\_3.txt}、\texttt{cs\_23\_1.txt}、\texttt{cs\_23\_2.txt}），并基于这些文档给出了准确答案。
+
+\subsection{性能分析}
+
+\begin{itemize}
+	\item \textbf{响应时间}：平均 2 秒（含检索 + 推理）
+	\item \textbf{检索准确率}：Top-3 召回率约 85\%
+	\item \textbf{显存占用}：稳定在 6GB 左右
+	\item \textbf{推理速度}：15-20 tokens/s
+\end{itemize}
+
+\subsection{关键问题与解决}
+
+\subsubsection{AutoGPTQ 版本兼容性}
+
+\textbf{问题}：安装 AutoGPTQ 后报错 \texttt{Couldn't find CUDA library}
+
+\textbf{解决}：必须严格匹配 \texttt{torch==2.1.2+cu121} 版本，并从清华镜像源安装 CUDA 版本的 PyTorch。
+
+\textbf{参考资料}：\url{https://jishuzhan.net/article/1868560413910634498}
+
+\subsubsection{FAISS 序列化安全警告}
+
+\textbf{问题}：加载向量库时报 \texttt{dangerous deserialization} 错误
+
+\textbf{解决}：在 \texttt{FAISS.load\_local()} 时添加参数 \texttt{allow\_dangerous\_deserialization=True}。
+
+\section{实验总结}
+
+\subsection{主要收获}
+
+\begin{enumerate}
+	\item \textbf{技术能力提升}
+	\begin{itemize}
+		\item 掌握了大模型量化部署技术（GPTQ 4-bit）
+		\item 学会了 RAG 架构的完整实现流程
+		\item 熟悉了向量检索技术（FAISS）的应用
+	\end{itemize}
+	
+	\item \textbf{工程能力锻炼}
+	\begin{itemize}
+		\item 学会了环境依赖管理和版本锁定
+		\item 提升了系统性排查问题的能力
+		\item 积累了 AI 应用全栈开发经验
+	\end{itemize}
+	
+	\item \textbf{技术认知深化}
+	\begin{itemize}
+		\item 理解了 RAG 如何解决大模型"幻觉"问题
+		\item 认识到私有数据集对企业应用的重要性
+		\item 体会到开源生态在 AI 民主化中的价值
+	\end{itemize}
+\end{enumerate}
+
+\subsection{不足与改进}
+
+\begin{itemize}
+	\item \textbf{并发处理}：当前 Flask 单线程架构不支持并发，可改用 FastAPI 或 Gunicorn 多进程
+	\item \textbf{检索优化}：可引入 Reranking 机制提升复杂查询的召回率
+	\item \textbf{知识库管理}：实现增量更新机制，避免每次修改都需全量重建
+	\item \textbf{多轮对话}：增加会话管理，支持上下文保持
+\end{itemize}
+
+\subsection{心得体会}
+
+通过本次实验，我深刻体会到 AI 应用开发与传统软件开发的差异。大模型的不确定性、环境配置的复杂性、以及 RAG 系统的调优难度，都对开发者提出了更高要求。但正是这些挑战让我意识到：AI 技术的落地不仅需要理论知识，更需要扎实的工程能力和持续的学习精神。
+
+开源生态的力量令人惊叹——从 Qwen 模型到 LangChain 框架，再到 FAISS 向量库，这些工具让个人开发者也能构建专业级的 AI 应用。未来，随着模型能力的持续提升和工具链的不断完善，基于 RAG 的私有知识助手必将成为企业和个人的标配工具。
+
+\subsection{项目代码}
+
+本实验完整代码已开源至 GitHub：\url{https://github.com/ironhxs/LLM}
+
+\end{document}

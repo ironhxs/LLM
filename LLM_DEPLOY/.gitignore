@@ -54,3 +54,14 @@ desktop.ini
 *.bak
 *.swp
 *~
+
+# LaTeX 编译产物（精确匹配，不忽略源文件）
+docs/*.aux
+docs/*.log
+docs/*.out
+docs/*.toc
+docs/*.gz
+docs/images/
+# 保留 LaTeX 源文件和图片
+!docs/*.cls
+!docs/*.tex
